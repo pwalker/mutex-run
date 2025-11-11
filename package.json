@@ -1,14 +1,14 @@
 {
-  "name": "@peterw-xyz/ts-library-template",
-  "version": "0.1.0",
-  "description": "An example typescript library",
+  "name": "mutex-run",
+  "version": "0.0.1",
+  "description": "A CLI utility for only running one thing at a time.",
   "license": "MIT",
   "author": {
     "name": "Peter Walker",
     "email": "peterw@suprafax.net",
     "url": "https://peterw.xyz"
   },
-  "repository": "https://github.com/pwalker/ts-library-template",
+  "repository": "https://github.com/pwalker/mutex-run",
   "type": "module",
   "scripts": {
     "build": "tsdown",
@@ -26,19 +26,19 @@
     "@changesets/cli": "^2.29.7",
     "@tsconfig/node22": "^22.0.2",
     "prettier": "^3.6.2",
-    "tsdown": "^0.15.11",
+    "tsdown": "^0.16.2",
     "typescript": "^5.9.3",
-    "vitest": "^4.0.4"
+    "vitest": "^4.0.8"
   },
   "files": [
     "dist"
   ],
   "packageManager": "pnpm@10.18.1",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "main": "./dist/index.mjs",
   "exports": {
-    ".": "./dist/index.js",
+    ".": "./dist/index.mjs",
     "./package.json": "./package.json"
   }
 }
