@@ -4,6 +4,12 @@
 
 ### Minor Changes
 
+- ed65617: initial release
+
+## 0.1.0
+
+### Minor Changes
+
 - d073a12: Go esm only
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "mutex-run",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "A CLI utility for only running one thing at a time.",
   "license": "MIT",
   "author": {
