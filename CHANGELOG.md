@@ -1,5 +1,15 @@
 # @peterw-xyz/ts-library-template
 
+## 0.2.0
+
+### Minor Changes
+
+- 4a7e2f6: Export main function in library
+
+### Patch Changes
+
+- 4a7e2f6: Reorganize files, getting ready for library export
+
 ## 0.1.0
 
 ### Minor Changes
