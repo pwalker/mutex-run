@@ -35,43 +35,28 @@ Specify a custom lock file path to control which commands wait for each other:
 mutex-run --lock /tmp/my-build.lock -- turbo run build
 ```
 
-### Wait with Timeout
+### Wait Behavior
 
-By default, `mutex-run` waits up to 30 minutes for a lock. You can customize this:
+By default, `mutex-run` waits up to approximately 1 hour for a lock. You can customize this:
 
 ```bash
 # Wait up to 5 minutes (300000ms)
 mutex-run --timeout 300000 -- turbo run build
 
-# Wait indefinitely (no timeout)
+# No timeout (wait the full ~1 hour)
 mutex-run --timeout 0 -- turbo run build
 
 # Fail immediately if lock is held (no waiting)
-mutex-run --wait false -- turbo run build
-```
-
-### Retry Behavior
-
-Control how `mutex-run` retries when the lock is held:
-
-```bash
-# Set retry interval to 2 seconds (default: 1000ms)
-mutex-run --retry-interval 2000 -- turbo run build
-
-# Set maximum retry interval to 5 seconds (default: 3000ms)
-mutex-run --max-retry-interval 5000 -- turbo run build
-
-# Adjust the backoff factor (default: 1.1 for minimal backoff)
-mutex-run --factor 1.0 -- turbo run build  # no backoff, constant interval
-mutex-run --factor 1.5 -- turbo run build  # moderate exponential backoff
+mutex-run --no-wait -- turbo run build
 ```
 
 ## How It Works
 
 1. **Lock Acquisition**: When `mutex-run` starts, it attempts to acquire a lock on the specified lock file using [proper-lockfile](https://www.npmjs.com/package/proper-lockfile)
-2. **Wait/Retry**: If the lock is held by another process and `--wait` is true, it will retry with a configurable backoff strategy (default: 1 second interval with 1.1x backoff factor, capped at 3 seconds) until:
+2. **Wait/Retry**: If the lock is held by another process and `--wait` is true (default), it will retry with a gentle backoff strategy (1-3 second intervals) for up to ~1 hour until:
    - The lock becomes available, OR
    - The timeout is reached (if specified)
+   - If `--no-wait` is specified, it fails immediately
 3. **Command Execution**: Once the lock is acquired, your command runs as normal
 4. **Cleanup**: When the command completes (success or failure) or is interrupted by a signal (SIGINT, SIGTERM), the lock is released and the lock file is removed.
 
@@ -87,7 +72,7 @@ mutex-run --factor 1.5 -- turbo run build  # moderate exponential backoff
 
 ### Lock Not Released
 
-If a process crashes without cleaning up, locks older than 5 minutes are automatically considered stale and can be taken over. You can adjust this with `--stale-timeout`:
+If a process crashes without cleaning up, locks older than 10 minutes are automatically considered stale and can be taken over. You can adjust this with `--stale-timeout`:
 
 ```bash
 mutex-run --stale-timeout 60000 -- turbo run build  # 1 minute
@@ -105,10 +90,6 @@ mutex-run --lock /tmp/my-build.lock -- turbo run build
 mutex-run --lock ./.mutex-run/build.lock -- turbo run build
 ```
 
-### Timeout Errors
+### Color Output
 
-If your command takes longer than the default 30 minutes, increase the timeout:
-
-```bash
-mutex-run --timeout 3600000 -- turbo run build  # 60 minutes
-```
+By default, `mutex-run` provides colorful output with a spinner while waiting for a lock. Colors are automatically disabled in CI environments or can be manually disabled with `--no-color`.
