@@ -40,6 +40,7 @@ describe("mutex-run CLI", () => {
       CLI_PATH,
       "--lock",
       TEST_LOCK,
+      "--no-color",
       "--",
       "echo",
       "hello",
@@ -57,6 +58,7 @@ describe("mutex-run CLI", () => {
         CLI_PATH,
         "--lock",
         TEST_LOCK,
+        "--no-color",
         "--",
         "node",
         "-e",
@@ -78,6 +80,7 @@ describe("mutex-run CLI", () => {
       CLI_PATH,
       "--lock",
       lockFile,
+      "--no-color",
       "--wait",
       "false",
       "--",
@@ -95,6 +98,7 @@ describe("mutex-run CLI", () => {
         CLI_PATH,
         "--lock",
         lockFile,
+        "--no-color",
         "--wait",
         "false",
         "--",
@@ -119,6 +123,7 @@ describe("mutex-run CLI", () => {
       CLI_PATH,
       "--lock",
       lockFile,
+      "--no-color",
       "--",
       "node",
       "-e",
@@ -134,6 +139,7 @@ describe("mutex-run CLI", () => {
       CLI_PATH,
       "--lock",
       lockFile,
+      "--no-color",
       "--wait",
       "--",
       "echo",
@@ -158,6 +164,7 @@ describe("mutex-run CLI", () => {
       CLI_PATH,
       "--lock",
       lockFile,
+      "--no-color",
       "--",
       "node",
       "-e",
@@ -173,6 +180,7 @@ describe("mutex-run CLI", () => {
         CLI_PATH,
         "--lock",
         lockFile,
+        "--no-color",
         "--wait",
         "--timeout",
         "1000",
@@ -194,7 +202,7 @@ describe("mutex-run CLI", () => {
 
   it("shows error when no command provided", async () => {
     try {
-      await execa("tsx", [CLI_PATH, "--lock", TEST_LOCK, "--"], {
+      await execa("tsx", [CLI_PATH, "--lock", TEST_LOCK, "--no-color", "--"], {
         reject: true,
       });
       expect.fail("Should have thrown");
@@ -214,6 +222,7 @@ describe("mutex-run CLI", () => {
       CLI_PATH,
       "--lock",
       lockFile,
+      "--no-color",
       "--verbose",
       "--",
       "node",
