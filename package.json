@@ -11,7 +11,7 @@
   "repository": "https://github.com/pwalker/mutex-run",
   "type": "module",
   "scripts": {
-    "dev": "tsx src/main.ts",
+    "dev": "tsx src/cli.ts",
     "build": "tsdown",
     "test": "vitest run",
     "format": "prettier --write .",

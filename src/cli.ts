@@ -1,12 +1,10 @@
 #!/usr/bin/env node
-import { execa } from "execa";
-import lockfile from "proper-lockfile";
 import { defineCommand, runMain } from "citty";
-import { ensureFile, splitAtDoubleDash } from "./utils";
-import { dirname, resolve } from "node:path";
-import { unlink } from "node:fs/promises";
+import { splitAtDoubleDash } from "./utils";
+import { resolve } from "node:path";
 import ora from "ora";
 import { createLogger } from "./logger";
+import { mutexRun } from "./mutex-run";
 
 const main = defineCommand({
   meta: {
@@ -57,39 +55,20 @@ const main = defineCommand({
     const timeout = parseInt(args.timeout, 10);
     const staleTimeout = parseInt(args["stale-timeout"], 10);
 
-    // Retry configuration (hardcoded defaults)
-    const retryInterval = 1000; // 1 second
-    const maxRetryInterval = 3000; // 3 seconds
-    const factor = 1.1;
-
-    // Calculate retry count based on wait flag
-    // If wait=true, retry for ~1 hour (3600000ms / maxRetryInterval)
-    // If wait=false, fail immediately (retries=0)
-    const retries = args.wait ? Math.floor(3600000 / maxRetryInterval) : 0;
-
     // If there is no "--" in the args, assume that everything is the command
     const childArgv = tail.length === 0 ? head : tail;
 
-    // Resolve lock path and ensure the lock target exists.
-    // proper-lockfile prefers locking an existing file/directory.
+    // Validate command was provided
+    if (childArgv.length === 0) {
+      log.error("No command specified");
+      log.info("Usage: mutex-run [options] -- <command> [args...]");
+      log.info("Example: mutex-run --verbose -- echo 'hello world'");
+      process.exit(1);
+    }
+
+    // Resolve lock path for spinner display
     const lockPath = resolve(args.lock);
-    await ensureFile(lockPath);
 
-    let release: undefined | (() => Promise<void>);
-    const cleanup = async (signal?: NodeJS.Signals) => {
-      try {
-        log.verbose("cleanup start", signal ? `(${signal})` : "");
-        if (release) await release();
-        log.verbose("lock released");
-        await unlink(lockPath);
-        log.verbose("lockfile removed");
-      } catch (err) {
-        log.verbose("cleanup error:", err);
-        // Errors during cleanup are non-fatal, but we log them in verbose mode
-      }
-    };
-
-    // Acquire lock (wait or fail-fast)
     // Create spinner for lock acquisition (only if not verbose and color is enabled)
     const spinner =
       args.verbose || args["no-color"]
@@ -105,52 +84,30 @@ const main = defineCommand({
     }
 
     try {
-      const lockOpts: Parameters<typeof lockfile.lock>[1] = {
-        realpath: false, // allow locking a path we just created
-        stale: staleTimeout, // auto-clear stale locks
-        retries: args.wait
+      // Call mutexRun API with mapped options
+      const result = await mutexRun(childArgv, {
+        lockFile: args.lock,
+        wait: args.wait,
+        timeout,
+        staleTimeout,
+        logger: args.verbose
           ? {
-              retries: retries,
-              factor: factor,
-              minTimeout: retryInterval,
-              maxTimeout: maxRetryInterval,
+              log: (...logArgs: any[]) => log.verbose(...logArgs),
+              error: (...logArgs: any[]) => log.error(...logArgs),
             }
-          : 0,
-      };
-
-      log.verbose(`acquiring lock at ${lockPath}`);
-      if (args.wait) {
-        log.verbose(
-          `will wait for lock (timeout=${timeout}ms, max wait time ~${Math.floor((retries * maxRetryInterval) / 60000)}min)`,
-        );
-      }
-
-      // Wrap lock acquisition with overall timeout if specified
-      const lockPromise = lockfile.lock(lockPath, lockOpts);
-
-      if (timeout > 0) {
-        const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(
-            () =>
-              reject(new Error(`Lock acquisition timeout after ${timeout}ms`)),
-            timeout,
-          ),
-        );
-        release = await Promise.race([lockPromise, timeoutPromise]);
-      } else {
-        release = await lockPromise;
-      }
+          : undefined,
+      });
 
       if (spinner) {
-        spinner.succeed("Lock acquired");
-      } else if (!args.verbose && args["no-color"]) {
-        log.success("Lock acquired");
+        spinner.succeed("Command completed");
       }
-      log.verbose("lock acquired");
-    } catch (err) {
+
+      process.exit(result.exitCode);
+    } catch (err: any) {
       if (spinner) {
         spinner.fail("Failed to acquire lock");
       }
+
       log.error(`Failed to acquire lock at: ${lockPath}`);
       log.info("");
       log.info("This could mean:");
@@ -163,51 +120,6 @@ const main = defineCommand({
       log.verbose("Error details:");
       log.verbose(String(err));
       process.exit(1);
-    }
-
-    // Validate command was provided
-    if (childArgv.length === 0) {
-      log.error("No command specified");
-      log.info("Usage: mutex-run [options] -- <command> [args...]");
-      log.info("Example: mutex-run --verbose -- echo 'hello world'");
-      await cleanup();
-      process.exit(1);
-    }
-
-    // Launch child command
-    const childCmd = childArgv[0]!;
-    const childArgs = childArgv.slice(1);
-
-    log.verbose(`exec: ${childCmd} ${childArgs.join(" ")}`);
-
-    try {
-      const child = execa(childCmd, childArgs, {
-        stdio: "inherit",
-        shell: process.platform === "win32", // helps Windows resolve .cmd and builtins
-      });
-
-      // If parent receives a signal, forward to child
-      const forward = (sig: NodeJS.Signals) => {
-        try {
-          child.kill(sig);
-        } catch (err) {
-          log.verbose(`failed to forward signal ${sig}:`, err);
-          // Child may have already exited, this is non-fatal
-        }
-      };
-      process.on("SIGINT", forward);
-      process.on("SIGTERM", forward);
-
-      const res = await child;
-
-      await cleanup();
-      process.exit(res.exitCode ?? 0);
-    } catch (err: any) {
-      await cleanup();
-
-      // execa throws with short-circuit info; normalize exit code
-      const code = typeof err?.exitCode === "number" ? err.exitCode : 1;
-      process.exit(code);
     }
   },
 });
