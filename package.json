@@ -37,6 +37,9 @@
   "files": [
     "dist"
   ],
+  "bin": {
+    "mutex-run": "./dist/main.mjs"
+  },
   "packageManager": "pnpm@10.18.1",
   "module": "./dist/main.mjs",
   "types": "./dist/main.d.mts",

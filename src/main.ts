@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { execa } from "execa";
 import lockfile from "proper-lockfile";
 import { defineCommand, runMain } from "citty";
@@ -22,9 +23,46 @@ const main = defineCommand({
       description: "Print extra diagnostics.",
       default: false,
     },
+    wait: {
+      type: "boolean",
+      description: "Wait for lock instead of failing immediately.",
+      default: true,
+    },
+    timeout: {
+      type: "string",
+      description: "Overall timeout in milliseconds (0 = no timeout).",
+      default: "600000", // 10 minutes
+    },
+    retries: {
+      type: "string",
+      description: "Maximum retry attempts (0 = infinite).",
+      default: "0",
+    },
+    "retry-interval": {
+      type: "string",
+      description: "Initial retry interval in milliseconds.",
+      default: "1000",
+    },
+    "max-retry-interval": {
+      type: "string",
+      description: "Maximum retry interval in milliseconds.",
+      default: "30000",
+    },
+    "stale-timeout": {
+      type: "string",
+      description: "Consider locks older than this stale (milliseconds).",
+      default: "300000", // 5 minutes
+    },
   },
   async run({ args, rawArgs }) {
     const { head, tail } = splitAtDoubleDash(rawArgs);
+
+    // Parse numeric arguments
+    const timeout = parseInt(args.timeout, 10);
+    const retries = parseInt(args.retries, 10);
+    const retryInterval = parseInt(args["retry-interval"], 10);
+    const maxRetryInterval = parseInt(args["max-retry-interval"], 10);
+    const staleTimeout = parseInt(args["stale-timeout"], 10);
 
     // If there is no "--" in the args, assume that everything is the command
     const childArgv = tail.length === 0 ? head : tail;
@@ -38,13 +76,16 @@ const main = defineCommand({
     const cleanup = async (signal?: NodeJS.Signals) => {
       try {
         if (args.verbose)
-          console.error("[runlock] cleanup start", signal ? `(${signal})` : "");
+          console.error("[mutex-run] cleanup start", signal ? `(${signal})` : "");
         if (release) await release();
-        if (args.verbose) console.error("[runlock] lock released");
+        if (args.verbose) console.error("[mutex-run] lock released");
         await unlink(lockPath);
-        if (args.verbose) console.error("[runlock] lockfile removed");
-      } catch {
-        // ignore
+        if (args.verbose) console.error("[mutex-run] lockfile removed");
+      } catch (err) {
+        if (args.verbose) {
+          console.error("[mutex-run] cleanup error:", err);
+        }
+        // Errors during cleanup are non-fatal, but we log them in verbose mode
       }
     };
 
@@ -52,27 +93,72 @@ const main = defineCommand({
     try {
       const lockOpts: Parameters<typeof lockfile.lock>[1] = {
         realpath: false, // allow locking a path we just created
-        // stale: scaleMs, // auto-clear stale locks
-        // retries: args.wait
-        //   ? {
-        //       retries: args.retries,
-        //       factor: 1.2,
-        //       minTimeout: args.minTimeout,
-        //       maxTimeout: args.maxTimeout,
-        //     }
-        //   : 0,
+        stale: staleTimeout, // auto-clear stale locks
+        retries: args.wait
+          ? {
+              // For proper-lockfile, retries=0 means no retries.
+              // Use 100 as a reasonable "many" retries (with exponential backoff
+              // up to 30s, this gives plenty of time to wait for locks)
+              retries: retries === 0 ? 100 : retries,
+              factor: 1.2, // exponential backoff
+              minTimeout: retryInterval,
+              maxTimeout: maxRetryInterval,
+            }
+          : 0,
       };
 
       if (args.verbose) {
-        console.error(`[runlock] acquiring lock at ${lockPath}`);
+        console.error(`[mutex-run] acquiring lock at ${lockPath}`);
+        if (args.wait) {
+          console.error(
+            `[mutex-run] will wait for lock (timeout=${timeout}ms, retries=${retries === 0 ? "infinite" : retries})`,
+          );
+        }
       }
 
-      release = await lockfile.lock(lockPath, lockOpts);
+      // Wrap lock acquisition with overall timeout if specified
+      const lockPromise = lockfile.lock(lockPath, lockOpts);
+
+      if (timeout > 0) {
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error(`Lock acquisition timeout after ${timeout}ms`)),
+            timeout,
+          ),
+        );
+        release = await Promise.race([lockPromise, timeoutPromise]);
+      } else {
+        release = await lockPromise;
+      }
+
+      if (args.verbose) {
+        console.error("[mutex-run] lock acquired");
+      }
     } catch (err) {
+      console.error(`[mutex-run] Failed to acquire lock at: ${lockPath}`);
+      console.error("[mutex-run]");
+      console.error("[mutex-run] This could mean:");
+      console.error("[mutex-run]   - Another instance is currently running");
+      console.error("[mutex-run]   - A stale lock exists (consider adjusting --stale-timeout)");
+      console.error("[mutex-run]   - Insufficient permissions to create/access the lock file");
+      console.error("[mutex-run]");
       console.error(
-        "[runlock] Another run is active (or lock could not be acquired).",
+        `[mutex-run] Try: mutex-run --verbose --lock ${lockPath} -- <command>`,
       );
-      if (args.verbose) console.error(String(err));
+      if (args.verbose) {
+        console.error("[mutex-run]");
+        console.error("[mutex-run] Error details:");
+        console.error(String(err));
+      }
+      process.exit(1);
+    }
+
+    // Validate command was provided
+    if (childArgv.length === 0) {
+      console.error("[mutex-run] Error: No command specified");
+      console.error("Usage: mutex-run [options] -- <command> [args...]");
+      console.error("Example: mutex-run --verbose -- echo 'hello world'");
+      await cleanup();
       process.exit(1);
     }
 
@@ -81,7 +167,7 @@ const main = defineCommand({
     const childArgs = childArgv.slice(1);
 
     if (args.verbose) {
-      console.error(`[runlock] exec: ${childCmd} ${childArgs.join(" ")}`);
+      console.error(`[mutex-run] exec: ${childCmd} ${childArgs.join(" ")}`);
     }
 
     try {
@@ -94,8 +180,11 @@ const main = defineCommand({
       const forward = (sig: NodeJS.Signals) => {
         try {
           child.kill(sig);
-        } catch {
-          // ignore
+        } catch (err) {
+          if (args.verbose) {
+            console.error(`[mutex-run] failed to forward signal ${sig}:`, err);
+          }
+          // Child may have already exited, this is non-fatal
         }
       };
       process.on("SIGINT", forward);
