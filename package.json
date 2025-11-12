@@ -38,14 +38,15 @@
     "dist"
   ],
   "bin": {
-    "mutex-run": "./dist/main.mjs"
+    "mutex-run": "./dist/cli.mjs"
   },
   "packageManager": "pnpm@10.18.1",
-  "module": "./dist/main.mjs",
-  "types": "./dist/main.d.mts",
-  "main": "./dist/main.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "main": "./dist/index.mjs",
   "exports": {
-    ".": "./dist/main.mjs",
+    ".": "./dist/index.mjs",
+    "./cli": "./dist/cli.mjs",
     "./package.json": "./package.json"
   },
   "dependencies": {
