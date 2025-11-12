@@ -31,11 +31,11 @@ const main = defineCommand({
     timeout: {
       type: "string",
       description: "Overall timeout in milliseconds (0 = no timeout).",
-      default: "600000", // 10 minutes
+      default: "0",
     },
     retries: {
       type: "string",
-      description: "Maximum retry attempts (0 = infinite).",
+      description: "Maximum retry attempts (0 = a lot).",
       default: "0",
     },
     "retry-interval": {
@@ -46,12 +46,17 @@ const main = defineCommand({
     "max-retry-interval": {
       type: "string",
       description: "Maximum retry interval in milliseconds.",
-      default: "30000",
+      default: "3000",
+    },
+    factor: {
+      type: "string",
+      description: "Scaling factor for retry interval",
+      default: "1.1",
     },
     "stale-timeout": {
       type: "string",
       description: "Consider locks older than this stale (milliseconds).",
-      default: "300000", // 5 minutes
+      default: "600000", // 10 minutes
     },
   },
   async run({ args, rawArgs }) {
@@ -63,6 +68,7 @@ const main = defineCommand({
     const retryInterval = parseInt(args["retry-interval"], 10);
     const maxRetryInterval = parseInt(args["max-retry-interval"], 10);
     const staleTimeout = parseInt(args["stale-timeout"], 10);
+    const factor = parseFloat(args["factor"]);
 
     // If there is no "--" in the args, assume that everything is the command
     const childArgv = tail.length === 0 ? head : tail;
@@ -76,7 +82,10 @@ const main = defineCommand({
     const cleanup = async (signal?: NodeJS.Signals) => {
       try {
         if (args.verbose)
-          console.error("[mutex-run] cleanup start", signal ? `(${signal})` : "");
+          console.error(
+            "[mutex-run] cleanup start",
+            signal ? `(${signal})` : "",
+          );
         if (release) await release();
         if (args.verbose) console.error("[mutex-run] lock released");
         await unlink(lockPath);
@@ -96,11 +105,8 @@ const main = defineCommand({
         stale: staleTimeout, // auto-clear stale locks
         retries: args.wait
           ? {
-              // For proper-lockfile, retries=0 means no retries.
-              // Use 100 as a reasonable "many" retries (with exponential backoff
-              // up to 30s, this gives plenty of time to wait for locks)
-              retries: retries === 0 ? 100 : retries,
-              factor: 1.2, // exponential backoff
+              retries: retries,
+              factor: factor,
               minTimeout: retryInterval,
               maxTimeout: maxRetryInterval,
             }
@@ -122,7 +128,8 @@ const main = defineCommand({
       if (timeout > 0) {
         const timeoutPromise = new Promise<never>((_, reject) =>
           setTimeout(
-            () => reject(new Error(`Lock acquisition timeout after ${timeout}ms`)),
+            () =>
+              reject(new Error(`Lock acquisition timeout after ${timeout}ms`)),
             timeout,
           ),
         );
@@ -139,8 +146,12 @@ const main = defineCommand({
       console.error("[mutex-run]");
       console.error("[mutex-run] This could mean:");
       console.error("[mutex-run]   - Another instance is currently running");
-      console.error("[mutex-run]   - A stale lock exists (consider adjusting --stale-timeout)");
-      console.error("[mutex-run]   - Insufficient permissions to create/access the lock file");
+      console.error(
+        "[mutex-run]   - A stale lock exists (consider adjusting --stale-timeout)",
+      );
+      console.error(
+        "[mutex-run]   - Insufficient permissions to create/access the lock file",
+      );
       console.error("[mutex-run]");
       console.error(
         `[mutex-run] Try: mutex-run --verbose --lock ${lockPath} -- <command>`,
