@@ -67,7 +67,8 @@ const main = defineCommand({
     },
     wait: {
       type: "boolean",
-      description: "Wait for lock instead of failing immediately (default: true, waits ~1 hour).",
+      description:
+        "Wait for lock instead of failing immediately (default: true, waits ~1 hour).",
       default: true,
     },
     timeout: {
@@ -155,7 +156,7 @@ const main = defineCommand({
       log.verbose(`acquiring lock at ${lockPath}`);
       if (args.wait) {
         log.verbose(
-          `will wait for lock (timeout=${timeout}ms, max wait time ~${Math.floor(retries * maxRetryInterval / 60000)}min)`,
+          `will wait for lock (timeout=${timeout}ms, max wait time ~${Math.floor((retries * maxRetryInterval) / 60000)}min)`,
         );
       }
 
