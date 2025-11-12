@@ -51,7 +51,7 @@ describe("mutexRun API", () => {
     await expect(
       mutexRun([], {
         lockFile: testLockFile,
-      })
+      }),
     ).rejects.toThrow("No command specified");
   });
 
@@ -146,7 +146,7 @@ describe("mutexRun API", () => {
         lockFile: testLockFile,
         wait: false,
         timeout: 100,
-      })
+      }),
     ).rejects.toThrow("Failed to acquire lock");
 
     // Wait for first command to complete

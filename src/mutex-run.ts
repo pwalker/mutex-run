@@ -111,7 +111,7 @@ export interface MutexRunResult {
  */
 export async function mutexRun(
   command: string | string[],
-  options: MutexRunOptions = {}
+  options: MutexRunOptions = {},
 ): Promise<MutexRunResult> {
   // Parse command
   const isStringCommand = typeof command === "string";
@@ -131,10 +131,15 @@ export async function mutexRun(
   const stdio = options.stdio ?? "inherit";
   // If command is a string, use shell by default to parse it
   // Otherwise, only use shell on Windows
-  const shell = options.shell ?? (isStringCommand || process.platform === "win32");
+  const shell =
+    options.shell ?? (isStringCommand || process.platform === "win32");
 
   // Create no-op logger if none provided
-  const log = options.logger ?? { log: () => {}, error: () => {}, info: () => {} };
+  const log = options.logger ?? {
+    log: () => {},
+    error: () => {},
+    info: () => {},
+  };
 
   // Retry configuration (hardcoded defaults)
   const retryInterval = 1000; // 1 second
@@ -182,7 +187,7 @@ export async function mutexRun(
     log.log?.(`acquiring lock at ${lockPath}`);
     if (wait) {
       log.log?.(
-        `will wait for lock (timeout=${timeout}ms, max wait time ~${Math.floor((retries * maxRetryInterval) / 60000)}min)`
+        `will wait for lock (timeout=${timeout}ms, max wait time ~${Math.floor((retries * maxRetryInterval) / 60000)}min)`,
       );
     }
 
@@ -192,9 +197,10 @@ export async function mutexRun(
     if (timeout > 0) {
       const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(
-          () => reject(new Error(`Lock acquisition timeout after ${timeout}ms`)),
-          timeout
-        )
+          () =>
+            reject(new Error(`Lock acquisition timeout after ${timeout}ms`)),
+          timeout,
+        ),
       );
       release = await Promise.race([lockPromise, timeoutPromise]);
     } else {
