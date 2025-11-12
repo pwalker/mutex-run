@@ -4,7 +4,7 @@ import { unlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
-const CLI_PATH = resolve(__dirname, "main.ts");
+const CLI_PATH = resolve(__dirname, "cli.ts");
 const TEST_LOCK = "/tmp/mutex-run-test.lock";
 
 describe("mutex-run CLI", () => {

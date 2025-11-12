@@ -50,6 +50,86 @@ mutex-run --timeout 0 -- turbo run build
 mutex-run --no-wait -- turbo run build
 ```
 
+## Programmatic API
+
+You can also use `mutex-run` as a library in your Node.js/TypeScript projects:
+
+### Basic Usage
+
+```typescript
+import { mutexRun } from "mutex-run";
+
+// Simple usage with command string
+const result = await mutexRun("pnpm build");
+console.log(`Exit code: ${result.exitCode}`);
+
+// Or with command array
+const result = await mutexRun(["pnpm", "build"]);
+```
+
+### With Options
+
+```typescript
+import { mutexRun } from "mutex-run";
+
+const result = await mutexRun(["turbo", "run", "build"], {
+  lockFile: ".my-custom.lock",
+  wait: true,
+  timeout: 30000, // 30 seconds
+  staleTimeout: 600000, // 10 minutes
+  cwd: "/path/to/project",
+  env: { NODE_ENV: "production" },
+  logger: console, // Optional logger for diagnostics
+});
+
+if (result.exitCode === 0) {
+  console.log("Build succeeded!");
+} else {
+  console.error(`Build failed with code ${result.exitCode}`);
+}
+```
+
+### Capturing Output
+
+```typescript
+import { mutexRun } from "mutex-run";
+
+const result = await mutexRun(["echo", "hello world"], {
+  stdio: "pipe", // Capture stdout/stderr
+});
+
+console.log(result.stdout); // "hello world"
+console.log(result.stderr);
+console.log(result.exitCode); // 0
+```
+
+### Custom Logger
+
+```typescript
+import { mutexRun } from "mutex-run";
+
+const result = await mutexRun(["pnpm", "build"], {
+  logger: {
+    log: (...args) => console.log("[mutex]", ...args),
+    error: (...args) => console.error("[mutex]", ...args),
+  },
+});
+```
+
+### TypeScript Types
+
+```typescript
+import type { MutexRunOptions, MutexRunResult, Logger } from "mutex-run";
+
+const options: MutexRunOptions = {
+  lockFile: ".my-lock",
+  wait: true,
+  timeout: 60000,
+};
+
+const result: MutexRunResult = await mutexRun("pnpm build", options);
+```
+
 ## How It Works
 
 1. **Lock Acquisition**: When `mutex-run` starts, it attempts to acquire a lock on the specified lock file using [proper-lockfile](https://www.npmjs.com/package/proper-lockfile)
