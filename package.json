@@ -1,0 +1,44 @@
+{
+  "name": "@peterw-xyz/ts-library-template",
+  "version": "0.1.0",
+  "description": "An example typescript library",
+  "license": "MIT",
+  "author": {
+    "name": "Peter Walker",
+    "email": "peterw@suprafax.net",
+    "url": "https://peterw.xyz"
+  },
+  "repository": "https://github.com/pwalker/ts-library-template",
+  "type": "module",
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run",
+    "format": "prettier --write .",
+    "check-format": "prettier --check .",
+    "check-exports": "attw --pack .",
+    "check-types": "tsc --noEmit",
+    "ci": "pnpm run check-format && pnpm run check-types && pnpm run test && pnpm run build",
+    "local-release": "changeset version && changeset publish",
+    "prepublishOnly": "npm run ci"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.2",
+    "@changesets/cli": "^2.29.7",
+    "@tsconfig/node22": "^22.0.2",
+    "prettier": "^3.6.2",
+    "tsdown": "^0.15.11",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.4"
+  },
+  "files": [
+    "dist"
+  ],
+  "packageManager": "pnpm@10.18.1",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "main": "./dist/index.js",
+  "exports": {
+    ".": "./dist/index.js",
+    "./package.json": "./package.json"
+  }
+}
